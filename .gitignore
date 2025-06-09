@@ -4,29 +4,6 @@ datasets/downstream/KaggleERN
 datasets/downstream/PhysioNetP300
 datasets/downstream/Raw_data
 datasets/downstream/sleep_edf
-datasets/downstream/CHB_MIT_Scalp_EEG/physionet.org/files/chbmit/1.0.0/chb02
-datasets/downstream/CHB_MIT_Scalp_EEG/physionet.org/files/chbmit/1.0.0/chb03
-datasets/downstream/CHB_MIT_Scalp_EEG/physionet.org/files/chbmit/1.0.0/chb04
-datasets/downstream/CHB_MIT_Scalp_EEG/physionet.org/files/chbmit/1.0.0/chb05
-datasets/downstream/CHB_MIT_Scalp_EEG/physionet.org/files/chbmit/1.0.0/chb06
-datasets/downstream/CHB_MIT_Scalp_EEG/physionet.org/files/chbmit/1.0.0/chb07
-datasets/downstream/CHB_MIT_Scalp_EEG/physionet.org/files/chbmit/1.0.0/chb08
-datasets/downstream/CHB_MIT_Scalp_EEG/physionet.org/files/chbmit/1.0.0/chb09
-datasets/downstream/CHB_MIT_Scalp_EEG/physionet.org/files/chbmit/1.0.0/chb10
-datasets/downstream/CHB_MIT_Scalp_EEG/physionet.org/files/chbmit/1.0.0/chb11
-datasets/downstream/CHB_MIT_Scalp_EEG/physionet.org/files/chbmit/1.0.0/chb12
-datasets/downstream/CHB_MIT_Scalp_EEG/physionet.org/files/chbmit/1.0.0/chb13
-datasets/downstream/CHB_MIT_Scalp_EEG/physionet.org/files/chbmit/1.0.0/chb14
-datasets/downstream/CHB_MIT_Scalp_EEG/physionet.org/files/chbmit/1.0.0/chb15
-datasets/downstream/CHB_MIT_Scalp_EEG/physionet.org/files/chbmit/1.0.0/chb16
-datasets/downstream/CHB_MIT_Scalp_EEG/physionet.org/files/chbmit/1.0.0/chb17
-datasets/downstream/CHB_MIT_Scalp_EEG/physionet.org/files/chbmit/1.0.0/chb18
-datasets/downstream/CHB_MIT_Scalp_EEG/physionet.org/files/chbmit/1.0.0/chb19
-datasets/downstream/CHB_MIT_Scalp_EEG/physionet.org/files/chbmit/1.0.0/chb20
-datasets/downstream/CHB_MIT_Scalp_EEG/physionet.org/files/chbmit/1.0.0/chb21
-datasets/downstream/CHB_MIT_Scalp_EEG/physionet.org/files/chbmit/1.0.0/chb22
-datasets/downstream/CHB_MIT_Scalp_EEG/physionet.org/files/chbmit/1.0.0/chb23
-datasets/downstream/CHB_MIT_Scalp_EEG/physionet.org/files/chbmit/1.0.0/chb24
 datasets/downstream/CHB_MIT_Scalp_EEG/processed_data_old
 datasets/pretrain
 downstream_tueg/
@@ -50,5 +27,28 @@ downstream/Modules/LaBraM
 downstream/Modules/LitTransformer
 downstream/Modules/models/encoder.pt
 downstream/Modules/NeuroGPT
-.venv
-.idea
+
+datasets/
+*.npy
+*.npz
+*.edf
+
+# 大文本
+*.csv
+*.txt
+
+# PyCharm 配置
+.idea/
+
+# 虚拟环境
+.venv/
+env/
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# 日志
+*.log
+logs/
