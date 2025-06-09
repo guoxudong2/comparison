@@ -4,6 +4,9 @@ import torchvision
 import math
 import random
 
+print(torch.cuda.is_available())
+print(torch.cuda.device_count())
+
 def load_fn(x):
     x = torch.load(x)
     
@@ -20,7 +23,7 @@ def load_fn(x):
     x = x.to(torch.float)
     return x
 
-max_epochs = 200
+max_epochs = 1
 max_lr = 5e-4
 batch_size=64
 devices=[0]

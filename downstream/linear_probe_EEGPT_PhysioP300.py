@@ -115,7 +115,7 @@ class LitEEGPTCausal(pl.LightningModule):
         
         self.target_encoder.eval()
         z = self.target_encoder(x, self.chans_id.to(x))
-        
+
         h = z.flatten(2)
         
         h = self.linear_probe1(self.drop(h))
@@ -227,7 +227,57 @@ class LitEEGPTCausal(pl.LightningModule):
         return (
             {'optimizer': optimizer, 'lr_scheduler': lr_dict},
         )
-        
+
+    def on_test_epoch_start(self) -> None:
+        """测试阶段开始时初始化测试数据的存储结构"""
+        self.running_scores["test"] = []
+        return super().on_test_epoch_start()
+
+    def test_step(self, batch, batch_idx):
+        """在测试数据集上运行模型推理，并计算损失、准确率等指标"""
+        x, y = batch
+        label = y.long()
+
+        x, logit = self.forward(x)
+
+        preds = torch.argmax(logit, dim=-1)
+        accuracy = ((preds == label) * 1.0).mean()
+
+        loss = self.loss_fn(logit, label)
+        y_score = logit
+        y_score = torch.softmax(y_score, dim=-1)[:, 1]
+
+        # 保存测试数据结果以便计算整体指标
+        self.running_scores["test"].append((label.clone().detach().cpu(), y_score.clone().detach().cpu()))
+
+        # 记录日志
+        self.log('test_loss', loss, on_epoch=True, on_step=False, sync_dist=True)
+        self.log('test_acc', accuracy, on_epoch=True, on_step=False, sync_dist=True)
+
+        return loss
+
+    def on_test_epoch_end(self) -> None:
+        """测试阶段结束时计算整体性能指标"""
+        label, y_score = [], []
+        for x, y in self.running_scores["test"]:
+            label.append(x)
+            y_score.append(y)
+
+        label = torch.cat(label, dim=0)
+        y_score = torch.cat(y_score, dim=0)
+
+        print("Test Results:", label.shape, y_score.shape)
+
+        # 计算评估指标
+        metrics = ["accuracy", "balanced_accuracy", "precision", "recall", "cohen_kappa", "f1", "roc_auc"]
+        results = get_metrics(y_score.cpu().numpy(), label.cpu().numpy(), metrics, True)
+
+        for key, value in results.items():
+            self.log('test_' + key, value, on_epoch=True, on_step=False, sync_dist=True)
+
+        return super().on_test_epoch_end()
+
+
 # load configs
 # -- LOSO 
 
@@ -241,6 +291,7 @@ global steps_per_epoch
 global max_lr
 
 batch_size=64
+#max_epochs = 100
 max_epochs = 100
 
 
@@ -253,8 +304,10 @@ for i,sub in enumerate(all_subjects):
     train_dataset = torchvision.datasets.DatasetFolder(root="../datasets/downstream/PhysioNetP300", loader=torch.load, extensions=sub_train)
     valid_dataset = torchvision.datasets.DatasetFolder(root="../datasets/downstream/PhysioNetP300", loader=torch.load, extensions=sub_valid)
 
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, num_workers=8, shuffle=True)
-    valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=batch_size, num_workers=8, shuffle=False)
+    #train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, num_workers=8, shuffle=True)
+    #valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=batch_size, num_workers=8, shuffle=False)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, num_workers=0, shuffle=True)
+    valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=batch_size, num_workers=0, shuffle=False)
 
     steps_per_epoch = math.ceil(len(train_loader))
     

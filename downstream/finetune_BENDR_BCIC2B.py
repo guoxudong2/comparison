@@ -207,6 +207,7 @@ for sub in range(1,10):
     
     test_loader  = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, num_workers=0, shuffle=False)
     
+    #max_epochs = 100
     max_epochs = 100
     steps_per_epoch = math.ceil(len(train_loader) )
     max_lr = 1e-5
@@ -224,6 +225,8 @@ for sub in range(1,10):
                          logger=[pl_loggers.TensorBoardLogger('./logs/', name="BENDR_BCIC2B_tb", version=f"subject{sub}"), 
                                  pl_loggers.CSVLogger('./logs/', name="BENDR_BCIC2B_csv")])
 
-    trainer.fit(model, train_loader, test_loader, ckpt_path='last')
+    #trainer.fit(model, train_loader, test_loader, ckpt_path='last')
+    trainer.fit(model, train_loader, valid_loader, ckpt_path='last')
+    trainer.test(model, dataloaders=test_loader)
 
 

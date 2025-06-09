@@ -68,7 +68,7 @@ class LitBENDR(pl.LightningModule):
         self.drop           = torch.nn.Dropout(p=0.10)
         
         self.loss_fn        = torch.nn.CrossEntropyLoss()
-        
+
     def mixup_data(self, x, y, alpha=None):
         # 随机选择另一个样本来混合数据
         
@@ -195,7 +195,8 @@ class LitBENDR(pl.LightningModule):
 
 data_path = "../datasets/downstream/Data/BCIC_2a_0_38HZ"
 # load configs
-for sub in range(1,10):
+#for sub in range(1,10):
+for sub in range(1, 2):
     train_dataset,valid_dataset,test_dataset = get_data(sub,data_path,1,True, use_channels=use_channels)
         
     global max_epochs
@@ -209,7 +210,8 @@ for sub in range(1,10):
     
     test_loader  = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, num_workers=0, shuffle=False)
     
-    max_epochs = 100
+    #max_epochs = 100
+    max_epochs = 1
     steps_per_epoch = math.ceil(len(train_loader) )
     max_lr = 1e-5
 
@@ -226,6 +228,7 @@ for sub in range(1,10):
                          logger=[pl_loggers.TensorBoardLogger('./logs/', name="BENDR_BCIC2A_tb", version=f"subject{sub}"), 
                                  pl_loggers.CSVLogger('./logs/', name="BENDR_BCIC2A_csv")])
 
-    trainer.fit(model, train_loader, test_loader, ckpt_path='last')
-
+    #trainer.fit(model, train_loader, test_loader, ckpt_path='last')
+    trainer.fit(model, train_loader, valid_loader, ckpt_path='last')
+    trainer.test(model, dataloaders=test_loader)
 

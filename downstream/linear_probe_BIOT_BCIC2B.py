@@ -45,7 +45,8 @@ class LitEEGPTCausal(pl.LightningModule):
         elif pretrain_model_choice == 2: in_channels = 18
         else: raise ValueError("pretrain_model_choice should be 0, 1, or 2")
         
-        self.chan_conv      = Conv1dWithConstraint(3, in_channels, 1, max_norm=1)
+        #self.chan_conv      = Conv1dWithConstraint(3, in_channels, 1, max_norm=1)
+        self.chan_conv = Conv1dWithConstraint(22, in_channels, 1, max_norm=1)
         model = BIOTClassifier(
                     n_classes=4,
                     # set the n_channels according to the pretrained model if necessary
@@ -75,8 +76,8 @@ class LitEEGPTCausal(pl.LightningModule):
         # training_step defined the train loop.
         # It is independent of forward
         x, y = batch
-        y = F.one_hot(y.long(), num_classes=4).float()
-        
+        #y = F.one_hot(y.long(), num_classes=4).float() 我先注释掉了
+        y = y.long()#我加的
         label = y
         
         x, logit = self.forward(x)
@@ -155,7 +156,39 @@ class LitEEGPTCausal(pl.LightningModule):
         return (
             {'optimizer': optimizer, 'lr_scheduler': lr_dict},
         )
-        
+
+    def test_step(self, batch, batch_idx):
+        x, y = batch
+        label = y.long()
+
+        x, logit = self.forward(x)
+        loss = self.loss_fn(logit, label)
+        accuracy = ((torch.argmax(logit, dim=-1) == label) * 1.0).mean()
+
+        self.log('test_loss', loss, on_epoch=True, on_step=False)
+        self.log('test_acc', accuracy, on_epoch=True, on_step=False)
+
+        y_score = torch.softmax(logit, dim=-1)[:, 1]  # 取第1类的概率，适用于二分类情况
+        self.running_scores["test"].append((label.clone().detach().cpu(), y_score.clone().detach().cpu()))
+
+        return loss
+
+    def on_test_epoch_end(self):
+        label, y_score = [], []
+        for x, y in self.running_scores["test"]:
+            label.append(x)
+            y_score.append(y)
+        label = torch.cat(label, dim=0)
+        y_score = torch.cat(y_score, dim=0)
+
+        # 计算测试指标
+        metrics = ["accuracy", "balanced_accuracy", "precision", "recall", "cohen_kappa", "f1", "roc_auc"]
+        results = get_metrics(y_score.cpu().numpy(), label.cpu().numpy(), metrics, True)
+
+        for key, value in results.items():
+            self.log('test_' + key, value, on_epoch=True, on_step=False, sync_dist=True)
+        print(f"Test results: {results}")
+
 # load configs
 # -- LOSO 
 
@@ -178,9 +211,12 @@ for i in range(1,10):
     batch_size=64
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, num_workers=0, shuffle=True)
-    valid_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, num_workers=0, shuffle=False)
+    valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=batch_size, num_workers=0, shuffle=False)
+
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, num_workers=0, shuffle=False)
     
-    max_epochs = 100
+    #max_epochs = 100
+    max_epochs = 1
     steps_per_epoch = math.ceil(len(train_loader) )
     max_lr = 4e-4
 
@@ -198,3 +234,4 @@ for i in range(1,10):
                                  pl_loggers.CSVLogger('./logs/', name="BIOT_BCIC2B_csv")])
 
     trainer.fit(model, train_loader, valid_loader, ckpt_path='last')
+    trainer.test(model, test_loader)

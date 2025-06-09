@@ -1,0 +1,29 @@
+# eegpt_causal.yaml
+#data:
+  ##shift_dir: ../datasets/downstream/CHB_MIT_Scalp_EEG/processed_data/shifted
+  #shift_dir: ../datasets/downstream/CHB_MIT_Scalp_EEG/processed_data/
+  #batch: 32
+  #val_ratio: 0.2
+  #interpolation_len: 128
+
+#model:
+#  pretrain_ckpt: ../checkpoint/eegpt_mcae_58chs_4s_large4E.ckpt  # 若不需要可删
+#train:
+#  epochs: 100
+#  lr: 3e-5
+#  gpu: 0
+
+
+#-----------------------------------
+train:
+  pid: chb01          # 指定要跑的 Patient ID，例如 "chb04"
+  lr: 0.0001
+  epochs: 25
+  gpu: 0
+  fold_idx: 0
+  pretrain_ckpt: "../checkpoint/eegpt_mcae_58chs_4s_large4E.ckpt"
+data:
+  interpolation_len: 512
+  batch: 64
+  val_ratio: 0.2
+  shift_dir: "../datasets/downstream/CHB_MIT_Scalp_EEG/processed_data"  # 存放 *_X.npy, *_y.npy, *_t0.npy, *_seizure_times.npy 的目录

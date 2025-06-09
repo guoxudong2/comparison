@@ -1,4 +1,4 @@
-import random 
+import random
 import os
 import torch
 from torch import nn
@@ -8,7 +8,7 @@ import torchvision
 from functools import partial
 import numpy as np
 import random
-import os 
+import os
 import tqdm
 from pytorch_lightning import loggers as pl_loggers
 import torch.nn.functional as F
@@ -35,7 +35,7 @@ use_channels_names = ['F3', 'F4', 'C3', 'C4', 'P3','P4', 'FPZ', 'FZ', 'CZ', 'CPZ
 class LitEEGPTCausal(pl.LightningModule):
 
     def __init__(self, load_path="../checkpoint/eegpt_mcae_58chs_4s_large4E.ckpt"):
-        super().__init__()    
+        super().__init__()
         self.chans_num = len(use_channels_names)
         self.num_class = 5
         # init model
@@ -52,56 +52,56 @@ class LitEEGPTCausal(pl.LightningModule):
             attn_drop_rate=0.0,
             drop_path_rate=0.0,
             init_std=0.02,
-            qkv_bias=True, 
+            qkv_bias=True,
             norm_layer=partial(nn.LayerNorm, eps=1e-6))
-            
+
         self.target_encoder = target_encoder
         self.chans_id       = target_encoder.prepare_chan_ids(use_channels_names)
-        
+
         # -- load checkpoint
         pretrain_ckpt = torch.load(load_path)
-        
+
         target_encoder_stat = {}
         for k,v in pretrain_ckpt['state_dict'].items():
             if k.startswith("target_encoder."):
                 target_encoder_stat[k[15:]]=v
-        
-                
+
+
         self.target_encoder.load_state_dict(target_encoder_stat)
 
         self.chan_conv       = Conv1dWithConstraint(2, self.chans_num, 1, max_norm=1)
-        
+
         self.linear_probe1   = LinearWithConstraint(2048, 64, max_norm=1)
-        self.drop            = torch.nn.Dropout(p=0.50)        
+        self.drop            = torch.nn.Dropout(p=0.50)
         self.decoder         = torch.nn.TransformerDecoder(
                                     decoder_layer=torch.nn.TransformerDecoderLayer(64, 4, 64*4, activation=torch.nn.functional.gelu, batch_first=False),
                                     num_layers=4
                                 )
         self.cls_token =        torch.nn.Parameter(torch.rand(1,1,64)*0.001, requires_grad=True)
         self.linear_probe2   =   LinearWithConstraint(64, self.num_class, max_norm=0.25)
-        
+
         self.loss_fn        = torch.nn.CrossEntropyLoss()
-    
+
         self.running_scores = {"train":[], "valid":[], "test":[]}
         self.is_sanity = True
-        
+
     def forward(self, x):
         B, C, T = x.shape
         x = temporal_interpolation(x, 256*30)
         x = self.chan_conv(x)
         self.target_encoder.eval()
         z = self.target_encoder(x, self.chans_id.to(x))
-        
+
         h = z.flatten(2)
-        
+
         h = self.linear_probe1(self.drop(h))
         pos = create_1d_absolute_sin_cos_embedding(h.shape[1], dim=64)
         h = h + pos.repeat((h.shape[0], 1, 1)).to(h)
-        
+
         h = torch.cat([self.cls_token.repeat((h.shape[0], 1, 1)).to(h.device), h], dim=1)
         h = h.transpose(0,1)
         h = self.decoder(h, h)[0,:,:]
-        
+
         h = self.linear_probe2(h)
         return x, h
 
@@ -110,7 +110,7 @@ class LitEEGPTCausal(pl.LightningModule):
         # It is independent of forward
         x, y = batch
         label = y.long()
-        
+
         x, logit = self.forward(x)
         loss = self.loss_fn(logit, label)
         accuracy = ((torch.argmax(logit, dim=-1)==label)*1.0).mean()
@@ -121,9 +121,9 @@ class LitEEGPTCausal(pl.LightningModule):
         self.log('data_max', x.max(), on_epoch=True, on_step=False, sync_dist=True)
         self.log('data_min', x.min(), on_epoch=True, on_step=False, sync_dist=True)
         self.log('data_std', x.std(), on_epoch=True, on_step=False, sync_dist=True)
-        
+
         return loss
-        
+
     def on_validation_epoch_start(self) -> None:
         self.running_scores["valid"]=[]
         return super().on_validation_epoch_start()
@@ -131,7 +131,7 @@ class LitEEGPTCausal(pl.LightningModule):
         if self.is_sanity:
             self.is_sanity=False
             return super().on_validation_epoch_end()
-            
+
         label, y_score = [], []
         for x,y in self.running_scores["valid"]:
             label.append(x)
@@ -139,33 +139,33 @@ class LitEEGPTCausal(pl.LightningModule):
         label = torch.cat(label, dim=0)
         y_score = torch.cat(y_score, dim=0)
         print(label.shape, y_score.shape)
-        
+
         metrics = ["accuracy", "balanced_accuracy", "cohen_kappa", "f1_weighted", "f1_macro", "f1_micro"]
         results = get_metrics(y_score.cpu().numpy(), label.cpu().numpy(), metrics, False)
-        
+
         for key, value in results.items():
             self.log('valid_'+key, value, on_epoch=True, on_step=False, sync_dist=True)
-        
+
         return super().on_validation_epoch_end()
     def validation_step(self, batch, batch_idx):
         # training_step defined the train loop.
         # It is independent of forward
         x, y = batch
         label = y.long()
-        
+
         x, logit = self.forward(x)
         loss = self.loss_fn(logit, label)
         accuracy = ((torch.argmax(logit, dim=-1)==label)*1.0).mean()
         # Logging to TensorBoard by default
         self.log('valid_loss', loss, on_epoch=True, on_step=False, sync_dist=True)
         self.log('valid_acc', accuracy, on_epoch=True, on_step=False, sync_dist=True)
-        
+
         self.running_scores["valid"].append((label.clone().detach().cpu(), logit.clone().detach().cpu()))
-        
+
         return loss
-    
+
     def configure_optimizers(self):
-        
+
         optimizer = torch.optim.AdamW(
             list(self.chan_conv.parameters())+
             list(self.linear_probe1.parameters())+
@@ -173,7 +173,7 @@ class LitEEGPTCausal(pl.LightningModule):
             [self.cls_token]+
             list(self.decoder.parameters()),
             weight_decay=0.01)#
-        
+
         lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=max_lr, steps_per_epoch=steps_per_epoch, epochs=max_epochs, pct_start=0.2)
         lr_dict = {
             'scheduler': lr_scheduler, # The LR scheduler instance (required)
@@ -184,23 +184,54 @@ class LitEEGPTCausal(pl.LightningModule):
             'strict': True, # Whether to crash the training if `monitor` is not found
             'name': None, # Custom name for `LearningRateMonitor` to use
         }
-      
+
         return (
             {'optimizer': optimizer, 'lr_scheduler': lr_dict},
         )
-        
+
+    def test_step(self, batch, batch_idx):
+        x, y = batch
+        label = y.long()
+        _, logit = self.forward(x)
+        loss = self.loss_fn(logit, label)
+        accuracy = ((torch.argmax(logit, dim=-1) == label) * 1.0).mean()
+
+        self.log('test_loss', loss, on_epoch=True, sync_dist=True)
+        self.log('test_acc', accuracy, on_epoch=True, sync_dist=True)
+
+        self.running_scores["test"].append((label.clone().detach().cpu(), logit.clone().detach().cpu()))
+        return loss
+
+    def on_test_epoch_end(self):
+        label, y_score = [], []
+        for x, y in self.running_scores["test"]:
+            label.append(x)
+            y_score.append(y)
+        label = torch.cat(label, dim=0)
+        y_score = torch.cat(y_score, dim=0)
+
+        metrics = ["accuracy", "balanced_accuracy", "cohen_kappa", "f1_weighted", "f1_macro", "f1_micro"]
+        results = get_metrics(y_score.cpu().numpy(), label.cpu().numpy(), metrics, False)
+
+        for key, value in results.items():
+            self.log('test_' + key, value, on_epoch=True, sync_dist=True)
+
 # load configs
-# -- LOSO 
+# -- LOSO
 # Train Data Num : 5Class: 36914 13604 34722 7922 15398
 subjects = [0, 2, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 24, 25, 26, 29, 30, 31, 32, 33, 34, 35, 37, 38, 40, 42, 44, 45, 46, 47, 48, 49, 51, 52, 53, 54, 55, 56, 57, 58, 59, 61, 62, 63, 64, 65, 66, 71, 72, 73, 74, 75, 76, 77, 81, 82]
 N = len(subjects)//10
 set_all = set(subjects)
-for fold in range(10):
+#for fold in range(10):
+for fold in range(1):
     set_valid = set(subjects[fold*N:(fold+1)*N])
     set_train = set_all - set_valid
 
-    train_dataset = torchvision.datasets.DatasetFolder(root="../datasets/downstream/sleep_edf/TrainFold", loader=lambda x: torch.load(x),  extensions=[f'.s{i}' for i in set_train])
-    valid_dataset = torchvision.datasets.DatasetFolder(root="../datasets/downstream/sleep_edf/TrainFold", loader=lambda x: torch.load(x), extensions=[f'.s{i}' for i in set_valid])
+    #train_dataset = torchvision.datasets.DatasetFolder(root="../datasets/downstream/sleep_edf/TrainFold", loader=lambda x: torch.load(x),  extensions=[f'.s{i}' for i in set_train])
+    #valid_dataset = torchvision.datasets.DatasetFolder(root="../datasets/downstream/sleep_edf/TrainFold", loader=lambda x: torch.load(x), extensions=[f'.s{i}' for i in set_valid])
+    train_dataset = torchvision.datasets.DatasetFolder(root="../datasets/downstream/sleep_edf/TrainFold", loader=lambda x: torch.load(x), extensions=['.pt'])
+    valid_dataset = torchvision.datasets.DatasetFolder(root="../datasets/downstream/sleep_edf/ValidFold", loader=lambda x: torch.load(x), extensions=['.pt'])
+    test_dataset = torchvision.datasets.DatasetFolder(root="../datasets/downstream/sleep_edf/TestFold", loader=lambda x: torch.load(x), extensions=['.pt'])
 
     # -- begin Training ------------------------------
 
@@ -213,8 +244,11 @@ for fold in range(10):
 
     batch_size=8*4
 
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, num_workers=8, shuffle=True)
-    valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=batch_size, num_workers=8, shuffle=False)
+    #train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, num_workers=8, shuffle=True)
+    #valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=batch_size, num_workers=8, shuffle=False)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, num_workers=0, shuffle=True)
+    valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=batch_size, num_workers=0, shuffle=False)
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, num_workers=0, shuffle=False)
 
     max_epochs = 40
     steps_per_epoch = math.ceil(len(train_loader))
@@ -229,9 +263,18 @@ for fold in range(10):
 
     trainer = pl.Trainer(accelerator='cuda',
                         precision=16,
-                        max_epochs=max_epochs, 
+                        max_epochs=max_epochs,
                         callbacks=callbacks,
-                        logger=[pl_loggers.TensorBoardLogger('./logs/', name="EEGPT_SLEEPEDF_tb", version=f"fold{fold+1}"), 
+                        logger=[pl_loggers.TensorBoardLogger('./logs/', name="EEGPT_SLEEPEDF_tb", version=f"fold{fold+1}"),
                                 pl_loggers.CSVLogger('./logs/', name="EEGPT_SLEEPEDF_csv")])
 
     trainer.fit(model, train_loader, valid_loader)
+    trainer.test(model, test_loader)
+
+'''print("PyTorch version:", torch.__version__)
+print("CUDA available:", torch.cuda.is_available())
+print("CUDA version:", torch.version.cuda)
+print("GPU count:", torch.cuda.device_count())
+if torch.cuda.is_available():
+    print("GPU Name:", torch.cuda.get_device_name(0))
+'''

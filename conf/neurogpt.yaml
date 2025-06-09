@@ -1,0 +1,23 @@
+data:
+  shift_dir: ../datasets/downstream/CHB_MIT_Scalp_EEG/processed_data/shifted
+  interpolation_len: 500
+  val_ratio: 0.2
+  batch: 32
+
+train:
+  max_epochs: 50
+  auc_patience: 10            # EarlyStopping patience
+  t_max: 30                   # CosineLR T_max
+  seed: 7
+
+search:                      # Optuna 搜索空间
+  embed_dim:  [512, 1024, 2048]
+  #n_layer:    [4, 6, 8, 10]
+  n_layer:    [2]
+  n_head:     [8, 16, 32]
+  #lr_low:     1e-5
+  #lr_high:    2e-3            # loguniform
+  lr_low: 1e-4
+  lr_high: 2e-2
+  dropout_low:  0.0
+  dropout_high: 0.3

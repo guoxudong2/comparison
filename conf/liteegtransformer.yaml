@@ -1,0 +1,25 @@
+data:
+  #x_path: ../datasets/downstream/CHB_MIT_Scalp_EEG/shifted/chb01_X_shift.npy
+  #y_path: ../datasets/downstream/CHB_MIT_Scalp_EEG/shifted/chb01_y_shift.npy
+  shift_dir: ../datasets/downstream/CHB_MIT_Scalp_EEG/processed_data/shifted
+  batch: 64
+  val_ratio: 0.2
+  #interpolation_len: 1024        # 改 1024 则不做插值
+  interpolation_len: 128        # 改 1024 则不做插值
+
+model:
+  in_ch: 23
+  out_ch: 19
+  #T: 1024
+  T: 128
+  d_model: 128
+  n_head: 8
+  depth: 3
+  d_ff: 256
+  dropout: 0.1
+
+train:
+  epochs: 100
+  lr: 3e-5
+  weight_decay: 0.01
+  gpu: 0

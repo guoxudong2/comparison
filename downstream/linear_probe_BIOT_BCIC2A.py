@@ -150,7 +150,38 @@ class LitEEGPTCausal(pl.LightningModule):
         return (
             {'optimizer': optimizer, 'lr_scheduler': lr_dict},
         )
-        
+
+    def on_test_epoch_end(self) -> None:
+        label, y_score = [], []
+        for x, y in self.running_scores["test"]:
+            label.append(x)
+            y_score.append(y)
+        label = torch.cat(label, dim=0)
+        y_score = torch.cat(y_score, dim=0)
+
+        # 计算测试指标
+        metrics = ["accuracy", "balanced_accuracy", "cohen_kappa", "f1_weighted", "f1_macro", "f1_micro"]
+        results = get_metrics(y_score.cpu().numpy(), label.cpu().numpy(), metrics, False)
+
+        for key, value in results.items():
+            self.log('test_' + key, value, on_epoch=True, on_step=False, sync_dist=True)
+        print(f"Test results: {results}")
+
+    def test_step(self, batch, batch_idx):
+        x, y = batch
+        label = y.long()
+
+        x, logit = self.forward(x)
+        loss = self.loss_fn(logit, label)
+        accuracy = ((torch.argmax(logit, dim=-1) == label) * 1.0).mean()
+
+        self.log('test_loss', loss, on_epoch=True, on_step=False)
+        self.log('test_acc', accuracy, on_epoch=True, on_step=False)
+
+        self.running_scores["test"].append((label.clone().detach().cpu(), logit.clone().detach().cpu()))
+        return loss
+
+
 # load configs
 # -- LOSO 
 
@@ -161,7 +192,8 @@ data_path = "../datasets/downstream/Data/BCIC_2a_0_38HZ"
 pretrain_model_choice=0
 seed_torch(9)
 
-for i in range(1,10):
+#for i in range(1,10):
+for i in range(1, 4):
     all_subjects = [i]
     all_datas = []
     train_dataset,valid_dataset,test_dataset = get_data(i,data_path,1,True, target_sample=200*4)
@@ -177,6 +209,7 @@ for i in range(1,10):
     
     test_loader  = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, num_workers=0, shuffle=False)
     
+    #max_epochs = 100
     max_epochs = 100
     steps_per_epoch = math.ceil(len(train_loader) )
     max_lr = 4e-4
@@ -196,3 +229,4 @@ for i in range(1,10):
                                  pl_loggers.CSVLogger('./logs_BIOT/', name="BIOT_BCIC2A_csv")])
 
     trainer.fit(model, train_loader, test_loader, ckpt_path='last')
+    trainer.test(model, test_loader)

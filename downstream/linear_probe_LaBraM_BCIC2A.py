@@ -182,7 +182,7 @@ for i in range(1,10):
     
     test_loader  = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, num_workers=0, shuffle=False)
     
-    max_epochs = 100
+    max_epochs = 1
     steps_per_epoch = math.ceil(len(train_loader) )
     max_lr = 4e-4
 

@@ -1,0 +1,5 @@
+max_epochs: 25
+max_lr: 0.0001
+pid: chb01
+pretrain_ckpt: ../checkpoint/eegpt_mcae_58chs_4s_large4E.ckpt
+steps_per_epoch: 28
